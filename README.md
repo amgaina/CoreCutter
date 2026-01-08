@@ -1,4 +1,4 @@
-# CoreCut - Plastic Core Stock Cutter
+# CoreCut - Plastic Core Cutter
 
 **Mid South Extrusion, Monroe, Louisiana**
 

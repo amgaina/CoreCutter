@@ -17,20 +17,22 @@ from datetime import datetime
 # HELPER FUNCTIONS
 # =============================================================================
 
-def _generate_plan_text(result, master_length, kerf):
+def _generate_plan_text(cores_required, total_waste, total_waste_percent, cutting_plan, master_length, kerf):
 	"""
 	Generate a formatted text representation of the cutting plan.
 	Used for exporting optimization results as a downloadable .txt file.
 	
 	Args:
-		result (dict): Optimization result from the solver
+		cores_required (int): Number of master cores needed
+		total_waste (float): Total waste material across all cores
+		total_waste_percent (float): Waste as percentage of total material
+		cutting_plan (list): List of patterns with piece counts and usage
 		master_length (float): Master core length in inches
 		kerf (float): Blade cut width in inches
 		
 	Returns:
 		str: Multi-line text formatted cutting plan with header, summary, and per-core details
 	"""
-	cutting_plan = result.get("cutting_plan", [])
 	lines = []
 	
 	# Header section with timestamp
@@ -41,10 +43,6 @@ def _generate_plan_text(result, master_length, kerf):
 	lines.append("")
 	
 	# Summary section with key metrics
-	cores_required = result.get("cores_required", 0)
-	total_waste = result.get("total_waste", 0)
-	total_waste_percent = result.get("total_waste_percent", 0)
-	
 	lines.append("SUMMARY")
 	lines.append("-" * 70)
 	lines.append(f"Cores Required:              {cores_required}")
@@ -67,7 +65,8 @@ def _generate_plan_text(result, master_length, kerf):
 		for rep in range(count):
 			total_pieces = sum(int(qty) for qty in pattern.values())
 			pieces_length = sum(float(width) * int(qty) for width, qty in pattern.items())
-			kerf_loss = max(0, total_pieces - 1) * kerf
+			# Kerf logic: 0 if pieces exactly equal core length, otherwise at least one kerf
+			kerf_loss = 0.0 if abs(pieces_length - master_length) < 1e-6 else float(kerf)
 			waste = master_length - (pieces_length + kerf_loss)
 			
 			# Core header with piece and waste summary
@@ -91,7 +90,7 @@ def _generate_plan_text(result, master_length, kerf):
 # RESULT DISPLAY FUNCTION
 # =============================================================================
 
-def display_result(result, master_length=None, kerf=0.25):
+def display_result(cores_required, total_waste, total_waste_percent, cutting_plan, master_length=None, kerf=0.25):
 	"""
 	Display cutting stock optimization results in a user-friendly format.
 	
@@ -101,20 +100,13 @@ def display_result(result, master_length=None, kerf=0.25):
 	- Per-pattern breakdown showing pieces, kerf loss, and waste
 	
 	Args:
-		result (dict): Optimization result from optimize_unlimited_stock_gg containing:
-			- cores_required (int): Number of master cores needed
-			- total_waste (float): Total waste material across all cores
-			- total_waste_percent (float): Waste as percentage of total material
-			- cutting_plan (list): List of patterns with piece counts and usage
+		cores_required (int): Number of master cores needed
+		total_waste (float): Total waste material across all cores
+		total_waste_percent (float): Waste as percentage of total material
+		cutting_plan (list): List of patterns with piece counts and usage
 		master_length (float, optional): Master core length for display calculations
 		kerf (float, optional): Blade cut width (default: 0.25 inches)
 	"""
-	
-	# Extract key metrics from optimization result
-	cores_required = result.get("cores_required", 0)
-	total_waste = result.get("total_waste", 0.0)
-	total_waste_percent = result.get("total_waste_percent", 0.0)
-	cutting_plan = result.get("cutting_plan", [])
 	
 	# Use provided master_length or default to safe fallback
 	if master_length is None or master_length <= 0:
@@ -147,17 +139,57 @@ def display_result(result, master_length=None, kerf=0.25):
 	""", unsafe_allow_html=True)
 	
 	# -------------------------------------------------------------------------
-	# Render Cutting Plan Patterns
+	# Summary Statistics Section (moved to top)
 	# -------------------------------------------------------------------------
 	st.markdown(
-		"<h4 style='margin-top:0;margin-bottom:16px;text-align:center;'>Cutting Plan by Core</h4>", 
+		"<h3 style='text-align:center;color:#0a4c92;margin:16px 0 12px 0;font-size:16px;'> Overall Statistics</h3>", 
 		unsafe_allow_html=True
 	)
 	
-	# Create a single horizontal view of all cores
-	all_cores_html = ""
+	# Summary metrics
+	total_master_length = cores_required * master_length
+    
+	col1, col2, col3, col4 = st.columns(4)
+	with col1:
+		st.metric("Total Cores", cores_required, delta=None, delta_color="off")
+	with col2:
+		st.metric("Total Material", f"{total_master_length:.2f}\"", delta=None, delta_color="off")
+	with col3:
+		st.metric("Material Used", f"{(total_master_length - total_waste):.2f}\"", delta=None, delta_color="off")
+	with col4:
+		st.metric("Total Waste", f"{total_waste:.2f}\"")
+
+	# -------------------------------------------------------------------------
+	# Color Legend (moved to top, just after overall statistics)
+	# -------------------------------------------------------------------------
+	st.markdown(
+		"""
+		<div style='background:#f8f9fa;border-radius:8px;padding:14px;margin:12px 0 18px 0;'>
+			<div style='font-weight:600;margin-bottom:10px;color:#0a4c92;font-size:13px;'>Color Legend:</div>
+			<div style='display:flex;gap:20px;flex-wrap:wrap;font-size:12px;'>
+				<div style='display:flex;align-items:center;gap:6px;'>
+					<div style='width:20px;height:20px;background:#0a4c92;border-radius:3px;'></div>
+					<span><b>Blue</b> = Cut Pieces</span>
+				</div>
+				<div style='display:flex;align-items:center;gap:6px;'>
+					<div style='width:20px;height:20px;background:#8B6F47;border-radius:3px;'></div>
+					<span><b>Brown</b> = Waste</span>
+				</div>
+			</div>
+		</div>
+		""",
+		unsafe_allow_html=True
+	)
 	
-	# Build all cores data first (to reverse order)
+	# -------------------------------------------------------------------------
+	# Render Cutting Plan Patterns with Visual Bars
+	# -------------------------------------------------------------------------
+	st.markdown(
+		"<h3 style='text-align:center;color:#0a4c92;margin:20px 0 16px 0;font-size:18px;'> Cutting Plan by Core</h3>", 
+		unsafe_allow_html=True
+	)
+	
+	# Build all cores data
 	cores_data = []
 	
 	for idx, pattern_info in enumerate(cutting_plan, 1):
@@ -171,65 +203,127 @@ def display_result(result, master_length=None, kerf=0.25):
 			# Calculate metrics for this core
 			total_pieces = sum(int(qty) for qty in pattern.values())
 			pieces_length = sum(float(width) * int(qty) for width, qty in pattern.items())
-			kerf_loss = max(0, total_pieces - 1) * kerf
+			# Kerf logic: 0 if pieces exactly equal core length, otherwise at least one kerf
+			kerf_loss = 0.0 if abs(pieces_length - master_length) < 1e-6 else float(kerf)
 			used_length = pieces_length + kerf_loss
 			waste = master_length - used_length
 			waste_percent = (waste / master_length * 100.0) if master_length > 0 else 0.0
 			
-			# Build bar for this core (pieces + waste only)
-			bar_html = ""
+			# Build visual bar with pieces (blue) + waste (brown)
+			bar_segments = []
 			
-			# Add segment for each cut piece size
-			# Add segment for each cut piece size
+			# Add segments for each cut piece size (BLUE)
 			for width, qty in sorted(pattern.items()):
 				seg_length = float(width) * int(qty)
 				width_pct = 100 * seg_length / master_length
-				
-				bar_html += (
-					f"<div style='display:inline-block;height:28px;width:{width_pct:.2f}%;"
-					f"background:#0a4c92;color:#fff;text-align:center;font-size:11px;"
-					f"line-height:28px;border-right:1px solid #fff;' "
-					f"title='{qty} × {width}\"'>{qty}×{width}\"</div>"
-				)
+				bar_segments.append({
+					"type": "piece",
+					"width_pct": width_pct,
+					"label": f"{qty}×{width:.2f}\"",
+					"value": seg_length
+				})
 			
-			# Store core data for rendering (will reverse order below)
+			# Add waste segment (BROWN)
+			if waste > 0:
+				waste_pct = 100 * waste / master_length
+				bar_segments.append({
+					"type": "waste",
+					"width_pct": waste_pct,
+					"label": f"Waste",
+					"value": waste
+				})
+			
+			# Store core data for rendering
 			cores_data.append({
 				"number": core_number,
-				"bar_html": bar_html,
+				"segments": bar_segments,
 				"waste": waste,
 				"waste_percent": waste_percent,
 				"pieces_length": pieces_length,
 				"kerf_loss": kerf_loss,
-				"used_length": used_length
+				"used_length": used_length,
+				"pattern": pattern
 			})
 	
-	# Reverse the order (bottom to top)
-	cores_data.reverse()
-	
-	# Render each core individually using Streamlit
-	for core_info in cores_data:
-		col1, col2 = st.columns([1, 8])
-		with col1:
-			st.markdown(f"**Core {core_info['number']}**")
-		with col2:
+	# Render each core with detailed information (flip order: bottom-to-top)
+	for core_info in reversed(cores_data):
+		# Core info row with number and waste
+		col_num, col_bar, col_waste = st.columns([0.8, 8, 1.5])
+		
+		with col_num:
+			st.markdown(f"<div style='font-weight:bold;font-size:13px;'>Core {core_info['number']}</div>", unsafe_allow_html=True)
+		
+		with col_bar:
+			# Visual cutting bar
+			bar_html = "<div style='display:flex;border-radius:6px;overflow:hidden;height:35px;box-shadow:0 1px 4px rgba(0,0,0,0.08);'>"
+			
+			for segment in core_info["segments"]:
+				if segment["type"] == "piece":
+					color = "#0a4c92"  # Blue for cut pieces
+				else:  # waste
+					color = "#8B6F47"  # Brown for waste
+				
+				title = segment["label"]
+				bar_html += (
+					f"<div style='display:inline-block;width:{segment['width_pct']:.2f}%;height:100%;background:{color};"
+					f"color:#fff;font-size:10px;line-height:35px;text-align:center;overflow:hidden;'"
+					f"title='{title}: {segment['value']:.2f}\"'>"
+					f"<span style='font-weight:600;'>{title}</span>"
+					f"</div>"
+				)
+			
+			bar_html += "</div>"
+			st.markdown(bar_html, unsafe_allow_html=True)
+		
+		with col_waste:
 			st.markdown(
-				f"<div style='display:flex;border-radius:4px;overflow:hidden;'>"
-				f"{core_info['bar_html']}"
+				f"<div style='font-size:12px;text-align:right;font-weight:600;'>"
+				f"<div style='color:#d9534f;'>{core_info['waste']:.2f}\"</div>"
+				f"<div style='font-size:11px;color:#666;'>{core_info['waste_percent']:.1f}%</div>"
 				f"</div>",
 				unsafe_allow_html=True
 			)
+		
+		# Compact metrics and details in one line
+		col_metrics, col_kerf = st.columns([3, 1.5])
+		
+		with col_metrics:
+			pieces_info = []
+			for width in sorted(core_info["pattern"].keys()):
+				qty = core_info["pattern"][width]
+				pieces_info.append(f"<span style='display:inline-block;background:#0a4c92;color:white;padding:3px 8px;border-radius:4px;margin:0 3px 0 0;font-size:11px;'><b>{qty}×</b>{width:.2f}\"</span>")
+			
+			st.markdown(" ".join(pieces_info), unsafe_allow_html=True)
+		
+		with col_kerf:
+			st.markdown(
+				f"<div style='font-size:11px;text-align:right;color:#666;'>"
+				f"<div>Kerf: <b style='color:#dc3545;'>{core_info['kerf_loss']:.2f}\"</b></div>"
+				f"<div style='color:#666;'>Waste: <b>{core_info['waste']:.2f}\"</b></div>"
+				f"</div>",
+				unsafe_allow_html=True
+			)
+		
+		# Minimal divider
+		st.markdown("<div style='margin:8px 0;border-top:1px solid #e8e8e8;'></div>", unsafe_allow_html=True)
+	
+	# Legend already shown at the top
 	
 	# -------------------------------------------------------------------------
 	# Export Section
 	# -------------------------------------------------------------------------
-	st.markdown("<br>", unsafe_allow_html=True)
+	st.markdown("<br><br>", unsafe_allow_html=True)
+	st.markdown(
+		"<h3 style='text-align:center;color:#0a4c92;margin-bottom:16px;'>Export Cutting Plan</h3>", 
+		unsafe_allow_html=True
+	)
 	
 	col_export = st.columns([1, 3])
 	with col_export[0]:
-		# Generate text plan
-		plan_text = _generate_plan_text(result, master_length, kerf)
+		# Generate text plan with correct parameters
+		plan_text = _generate_plan_text(cores_required, total_waste, total_waste_percent, cutting_plan, master_length, kerf)
 		st.download_button(
-			label="Export Plan",
+			label="Export as TXT",
 			data=plan_text,
 			file_name=f"cutting_plan_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
 			mime="text/plain",

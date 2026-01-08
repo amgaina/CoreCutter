@@ -42,7 +42,7 @@ def render_header():
 			<div style='display:flex;align-items:center;height:80px;'>
 				<div>
 					<h1 style='margin:0;padding:0;font-weight:800;font-size:32px;line-height:1.2;color:#0a4c92;'>Mid South Extrusion</h1>
-					<div style='margin-top:4px;font-size:16px;color:#333;font-weight:600;'>Plastic Core Stock Cutter</div>
+					<div style='margin-top:4px;font-size:16px;color:#333;font-weight:600;'>Plastic Core Cutter</div>
 					<div style='margin-top:2px;font-size:13px;color:#666;'>Monroe, Louisiana</div>
 				</div>
 			</div>
@@ -118,8 +118,12 @@ def render_landing_page():
 		# Display optimization results (rendered outside form to avoid API errors)
 		if "optimization_result" in st.session_state:
 			opt_data = st.session_state.optimization_result
+			result = opt_data["result"]
 			display_result(
-				opt_data["result"],
+				cores_required=result.get("cores_required", 0),
+				total_waste=result.get("total_waste", 0.0),
+				total_waste_percent=result.get("total_waste_percent", 0.0),
+				cutting_plan=result.get("cutting_plan", []),
 				master_length=opt_data["master_length"],
 				kerf=opt_data["kerf"]
 			)

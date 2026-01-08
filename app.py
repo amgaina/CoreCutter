@@ -8,16 +8,21 @@ Date: January 2026
 """
 
 import streamlit as st
-from pages import landing_page
+from pages import landing_page, auth
 import os 
 import sys
+
+# ============================================================================
+# PASSWORD PROTECTION
+# ============================================================================
+auth.check_password()
 
 def resource_path(relative_path):
     base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(base_path, relative_path)
 
 st.set_page_config(
-    page_title="Plastic Core Stock Cutter - Mid South Extrusion",
+    page_title="Plastic Core Cutter - Mid South Extrusion",
     page_icon=resource_path("mse_logo.png"),
     layout="wide",
     initial_sidebar_state="collapsed",
