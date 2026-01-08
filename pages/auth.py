@@ -12,22 +12,24 @@ import streamlit as st
 
 def check_password():
     """
-    Simple password check. User must enter correct password to access app.
+    Username and password check. User must enter correct credentials to access app.
     """
     
-    def password_entered():
-        """Check if password is correct."""
-        if st.session_state["password"] == st.secrets["password"]:
+    def credentials_entered():
+        """Check if username and password are correct."""
+        if (st.session_state["username"] == st.secrets["username"] and 
+            st.session_state["password"] == st.secrets["password"]):
             st.session_state["password_correct"] = True
-            del st.session_state["password"]  # Remove password from memory
+            del st.session_state["username"]  # Remove credentials from memory
+            del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
-    # If password already checked in this session, allow access
+    # If credentials already checked in this session, allow access
     if st.session_state.get("password_correct", False):
         return True
 
-    # Show password input dialog
+    # Show login form
     st.markdown(
         """
         <style>
@@ -43,9 +45,15 @@ def check_password():
     )
     
     st.text_input(
-        "Enter Application Password",
+        "Username",
+        on_change=credentials_entered,
+        key="username",
+    )
+    
+    st.text_input(
+        "Password",
         type="password",
-        on_change=password_entered,
+        on_change=credentials_entered,
         key="password",
     )
 
