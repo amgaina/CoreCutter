@@ -58,7 +58,7 @@ def check_password():
     )
 
     if st.session_state.get("password_correct") == False:
-        st.error("❌ Incorrect password. Please try again.")
+        st.error("❌ Invalid Credentials. Please try again.")
     
     st.stop()
     return False

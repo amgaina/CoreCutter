@@ -111,10 +111,47 @@ def display_result(cores_required, total_waste, total_waste_percent, cutting_pla
 	# Use provided master_length or default to safe fallback
 	if master_length is None or master_length <= 0:
 		master_length = 100.0
+
+	# -------------------------------------------------------------------------
+	# Responsive CSS for smaller screens
+	# -------------------------------------------------------------------------
+	st.markdown(
+		"""
+		<style>
+		/* Base classes */
+		.mse-summary h2 { margin-bottom: 12px; text-align: center; }
+		.mse-core-bar { display: flex; border-radius: 6px; overflow: hidden; height: 35px; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+		.mse-segment { color: #fff; font-size: 10px; line-height: 35px; text-align: center; overflow: hidden; }
+		.mse-piece-chip { display:inline-block; background:#0a4c92; color:white; padding:3px 8px; border-radius:4px; margin:0 3px 0 0; font-size:11px; }
+		.mse-legend { background:#f8f9fa; border-radius:8px; padding:14px; margin:12px 0 18px 0; }
+
+		/* Force Streamlit metric colors to black */
+		[data-testid="stMetricValue"] { color: #000 !important; }
+		[data-testid="stMetricLabel"] { color: #000 !important; }
+		[data-testid="stMetricDelta"] { color: #000 !important; }
+
+		/* Tablet */
+		@media (max-width: 768px) {
+		  .mse-summary h2 { font-size: 18px !important; }
+		  .mse-core-bar { height: 28px !important; }
+		  .mse-segment { font-size: 9px !important; line-height: 28px !important; }
+		  .mse-piece-chip { font-size:10px !important; padding:2px 6px !important; }
+		}
+
+		/* Mobile */
+		@media (max-width: 480px) {
+		  .mse-core-bar { height: 22px !important; }
+		  .mse-segment { font-size: 8px !important; line-height: 22px !important; }
+		  .mse-piece-chip { display:none; }
+		}
+		</style>
+		""",
+		unsafe_allow_html=True
+	)
 	
 	# Render summary card with key optimization metrics
 	st.markdown(f"""
-		<div style='background:#f7fafc;border-radius:12px;padding:20px 24px 16px 24px;
+		<div class='mse-summary' style='background:#f7fafc;border-radius:12px;padding:20px 24px 16px 24px;
 		            box-shadow:0 4px 16px rgba(10,76,146,0.10);max-width:650px;
 		            margin:auto;margin-bottom:20px;'>
 			<h2 style='color:#0a4c92;margin-bottom:12px;text-align:center;'>
@@ -142,7 +179,7 @@ def display_result(cores_required, total_waste, total_waste_percent, cutting_pla
 	# Summary Statistics Section (moved to top)
 	# -------------------------------------------------------------------------
 	st.markdown(
-		"<h3 style='text-align:center;color:#0a4c92;margin:16px 0 12px 0;font-size:16px;'> Overall Statistics</h3>", 
+		"<h3 style='text-align:center;color:#000000;margin:16px 0 12px 0;font-size:16px;'> Overall Statistics</h3>", 
 		unsafe_allow_html=True
 	)
 	
@@ -164,7 +201,7 @@ def display_result(cores_required, total_waste, total_waste_percent, cutting_pla
 	# -------------------------------------------------------------------------
 	st.markdown(
 		"""
-		<div style='background:#f8f9fa;border-radius:8px;padding:14px;margin:12px 0 18px 0;'>
+		<div class='mse-legend'>
 			<div style='font-weight:600;margin-bottom:10px;color:#0a4c92;font-size:13px;'>Color Legend:</div>
 			<div style='display:flex;gap:20px;flex-wrap:wrap;font-size:12px;'>
 				<div style='display:flex;align-items:center;gap:6px;'>
@@ -228,8 +265,8 @@ def display_result(cores_required, total_waste, total_waste_percent, cutting_pla
 				waste_pct = 100 * waste / master_length
 				bar_segments.append({
 					"type": "waste",
+					"label":"",
 					"width_pct": waste_pct,
-					"label": f"Waste",
 					"value": waste
 				})
 			
@@ -255,7 +292,7 @@ def display_result(cores_required, total_waste, total_waste_percent, cutting_pla
 		
 		with col_bar:
 			# Visual cutting bar
-			bar_html = "<div style='display:flex;border-radius:6px;overflow:hidden;height:35px;box-shadow:0 1px 4px rgba(0,0,0,0.08);'>"
+			bar_html = "<div class='mse-core-bar'>"
 			
 			for segment in core_info["segments"]:
 				if segment["type"] == "piece":
@@ -265,9 +302,8 @@ def display_result(cores_required, total_waste, total_waste_percent, cutting_pla
 				
 				title = segment["label"]
 				bar_html += (
-					f"<div style='display:inline-block;width:{segment['width_pct']:.2f}%;height:100%;background:{color};"
-					f"color:#fff;font-size:10px;line-height:35px;text-align:center;overflow:hidden;'"
-					f"title='{title}: {segment['value']:.2f}\"'>"
+					f"<div class='mse-segment' style='display:inline-block;width:{segment['width_pct']:.2f}%;height:100%;background:{color};'"
+					f" title='{title}: {segment['value']:.2f}\"'>"
 					f"<span style='font-weight:600;'>{title}</span>"
 					f"</div>"
 				)
@@ -291,7 +327,7 @@ def display_result(cores_required, total_waste, total_waste_percent, cutting_pla
 			pieces_info = []
 			for width in sorted(core_info["pattern"].keys()):
 				qty = core_info["pattern"][width]
-				pieces_info.append(f"<span style='display:inline-block;background:#0a4c92;color:white;padding:3px 8px;border-radius:4px;margin:0 3px 0 0;font-size:11px;'><b>{qty}×</b>{width:.2f}\"</span>")
+				pieces_info.append(f"<span class='mse-piece-chip'><b>{qty}×</b>{width:.2f}\"</span>")
 			
 			st.markdown(" ".join(pieces_info), unsafe_allow_html=True)
 		
